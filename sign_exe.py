@@ -67,14 +67,14 @@ if __name__ == "__main__":
     output_file = None
     keep_files = False
 
-    for arg in sys.argv[1:]:
+    for i, arg in enumerate(sys.argv[1:]):
         if arg.endswith(".exe") and input_file is None:
             input_file = arg
         elif arg == "--keep":
             keep_files = True
         elif arg == "--output":
             try:
-                output_file = sys.argv[sys.argv.index(arg) + 1]
+                output_file = sys.argv[i + 2]
             except IndexError:
                 print("[-] Missing output filename after --output.")
                 sys.exit(1)
@@ -92,3 +92,11 @@ if __name__ == "__main__":
 
     if not keep_files:
         cleanup_files()
+
+    # Replace original file with signed version
+    try:
+        os.remove(input_file)  # Delete original
+        os.rename(output_file, input_file)  # Rename signed file to original name
+        print(f"[+] Replaced original {input_file} with signed version.")
+    except Exception as e:
+        print(f"[!] Failed to replace original file: {e}")
