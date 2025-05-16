@@ -4,9 +4,24 @@ import argparse
 import subprocess
 import os
 import shlex
+import shutil
+import sys
 
 key = b'1GJ7d9gY57Fdjo43'
 aes = AES.new(key, AES.MODE_ECB)
+
+def ensure_mingw_installed():
+    if not shutil.which("x86_64-w64-mingw32-gcc"):
+        print("[*] MinGW-w64 not detected. Installing...")
+        try:
+            subprocess.run(["sudo", "apt", "update"], check=True)
+            subprocess.run(["sudo", "apt", "install", "-y", "mingw-w64"], check=True)
+            print("[+] MinGW-w64 successfully installed.")
+        except subprocess.CalledProcessError:
+            print("[-] Installation failed for MinGW-w64. Please install it manually.")
+            sys.exit(1)
+    else:
+        print("[+] MinGW-w64 is installed.")
 
 def encrypt_bytes(text):
     padded = pad(text.encode(), 16)
