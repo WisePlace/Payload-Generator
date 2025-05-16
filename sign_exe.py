@@ -34,6 +34,10 @@ def sign_exe(file_path, output_file):
         print(f"[-] The file {file_path} does not exist.")
         sys.exit(1)
 
+    if os.path.exists(output_file):
+        print(f"[!] Output file {output_file} already exists. Deleting it.")
+        os.remove(output_file)
+
     print(f"[*] Signing {file_path} → {output_file}")
 
     subprocess.run([
