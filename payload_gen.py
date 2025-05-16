@@ -237,5 +237,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    generate_payload_c(args.ip, args.cmd, args.port, args.notepad, args.hidden)
-    compile_payload(args.notepad, args.keep, args.hidden, args.sign)
+    generate_payload_c(args.ip, args.cmd, args.port, args.notepad)
+    compile_payload(args.notepad, args.keep, args.sign)
