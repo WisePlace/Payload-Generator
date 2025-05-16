@@ -30,7 +30,7 @@ python3 payload_gen.py --ip 192.168.1.100 --port 4444 --notepad --sign
 **--notepad** : Mimic Notepad metadata and icon.  
 **--keep** : Keep temporary files (.c, .rc, .res) after building.  
 **--sign** : Uses sign_exe.py to sign the exe, improving AVs bypass.  
-**--gui** : Display a error message on launch, waiting for user input before starting connection.
+**--gui** : Display an error message on launch, waiting for user input before starting connection.
   
 ---
   
