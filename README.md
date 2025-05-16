@@ -20,6 +20,7 @@ This tool generates a Windows reverse shell payload with **AES-encrypted IP and 
 ```bash
 python3 payload_gen.py --ip 192.168.1.100 --port 4444 --notepad
 ```
+
 ### Arguments
 
 **--ip** : IP address of the reverse shell listener (required).
@@ -32,7 +33,7 @@ python3 payload_gen.py --ip 192.168.1.100 --port 4444 --notepad
 
 ## Download
 ```bash
-git clone
+git clone https://github.com/WisePlace/Payload-Generator.git
 ```
 
 ---
